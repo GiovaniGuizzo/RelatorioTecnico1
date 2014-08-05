@@ -19,7 +19,7 @@ import jmetal.core.Algorithm;
 import jmetal.core.Operator;
 import jmetal.core.Problem;
 import jmetal.core.SolutionSet;
-import jmetal.metaheuristics.moead.MOEAD;
+import jmetal.metaheuristics.moead.MOEAD_DRA;
 import jmetal.metaheuristics.nsgaII.NSGAII;
 import jmetal.metaheuristics.spea2.SPEA2;
 import jmetal.operators.crossover.CrossoverFactory;
@@ -44,15 +44,67 @@ public class Experiment {
     private static String[] ALGORITHMS = new String[]{
         "NSGAII",
         "SPEA2",
-        "MOEAD"
+        "MOEAD_DRA"
     };
 
     public static void main(String[] args) {
+        boolean algorithms = false;
+        boolean indicators = false;
+        boolean tests = false;
+        if (args.length >= 1) {
+            for (String string : args) {
+                switch (string) {
+                    case "algorithms":
+                        algorithms = true;
+                        break;
+                    case "indicators":
+                        indicators = true;
+                        break;
+                    case "tests":
+                        tests = true;
+                        break;
+                    case "all":
+                        algorithms = true;
+                        indicators = true;
+                        tests = true;
+                        break;
+                    case "-h":
+                        System.out.println("Write the following in any order to determine what you want to execute:");
+                        System.out.println("\talgorithms - Execute the algorithms;");
+                        System.out.println("\tindicators - Execute the collect data from indicators;");
+                        System.out.println("\ttests - Execute statistical tests;");
+                        System.out.println("\tall - Execute everything;");
+                        System.exit(0);
+                        break;
+                }
+            }
+        } else if (args.length == 0) {
+            System.out.println("Write the following in any order to determine what you want to execute:");
+            System.out.println("\talgorithms - Execute the algorithms;");
+            System.out.println("\tindicators - Execute the collect data from indicators;");
+            System.out.println("\ttests - Execute statistical tests;");
+            System.out.println("\tall - Execute everything;");
+            System.exit(0);
+        }
         try {
-            execute();
-            gatherMetricsAverageAndStdDev("HYPERVOLUME", "IGD", "R2", "TIME");
-            runStatisticalComparsion("HYPERVOLUME", "IGD", "R2");
-        } catch (IOException | JMException | SecurityException | ClassNotFoundException | InterruptedException ex) {
+            if (algorithms) {
+                System.out.println("Executing Algorithms:");
+                execute();
+                System.out.println();
+            }
+            if (indicators) {
+                System.out.println("Calculating Indicator Statistics:");
+                gatherMetricsAverageAndStdDev("HYPERVOLUME", "IGD", "R2", "TIME");
+                System.out.println();
+                System.out.println();
+            }
+            if (tests) {
+                System.out.println("Running Statistical Tests:");
+                runStatisticalComparsion("HYPERVOLUME", "IGD", "R2");
+                System.out.println();
+                System.out.println();
+            }
+        } catch (Exception ex) {
             Logger.getLogger(Experiment.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
@@ -85,7 +137,8 @@ public class Experiment {
                 }
 
                 try (FileWriter r2 = new FileWriter(dirPath + "R2.txt"); FileWriter igd = new FileWriter(dirPath + "IGD.txt"); FileWriter time = new FileWriter(dirPath + "TIME.txt")) {
-                    System.out.println("Algorithm " + algorithmString + " for problem " + problem.getName() + "_" + problem.getNumberOfObjectives() + " started!");
+                    System.out.println("Algorithm " + algorithmString + " for problem " + problem.getName() + "_" + problem.getNumberOfObjectives() + ":");
+                    printProgress(0);
                     for (int execution = 0; execution < 30; execution++) {
 
                         Algorithm algorithm;
@@ -97,8 +150,8 @@ public class Experiment {
                             case "SPEA2":
                                 algorithm = new SPEA2(problem);
                                 break;
-                            case "MOEAD":
-                                algorithm = new MOEAD(problem);
+                            case "MOEAD_DRA":
+                                algorithm = new MOEAD_DRA(problem);
                                 break;
                             default:
                                 System.out.println("Algoritmo inválido!");
@@ -121,7 +174,7 @@ public class Experiment {
                         parameters.put("distributionIndex", 20.0);
                         parameters.put("CR", 1.0);
                         parameters.put("F", 0.5);
-                        if (algorithmString.equals("MOEAD")) {
+                        if (algorithmString.equals("MOEAD_DRA")) {
                             crossover = CrossoverFactory.getCrossoverOperator("DifferentialEvolutionCrossover", parameters);
                         } else {
                             crossover = CrossoverFactory.getCrossoverOperator("SBXCrossover", parameters);
@@ -155,19 +208,10 @@ public class Experiment {
                         r2.write(r2Indicator.R2(population) + "\n");
 
                         double percentage = ((((double) execution) + 1D) / 30D) * 100D;
-                        String dots = "";
-                        for (int i = 1; i <= 50; i++) {
-                            if (i <= percentage / 2) {
-                                dots += ".";
-                            } else {
-                                dots += " ";
-                            }
-                        }
-                        System.out.printf("\rProgress [" + dots + "] %.0f%s", percentage, "%");
+                        printProgress(percentage);
                     }
                 }
                 System.out.println();
-                System.out.println("Algorithm " + algorithmString + " for problem " + problem.getName() + "_" + problem.getNumberOfObjectives() + " finished!\n");
             }
 
             HypervolumeHandler hypervolume = new HypervolumeHandler();
@@ -190,8 +234,44 @@ public class Experiment {
         }
     }
 
-    private static void runStatisticalComparsion(String... metrics) throws IOException, InterruptedException {
+    private static void gatherMetricsAverageAndStdDev(String... metrics) throws FileNotFoundException, IOException {
+        printProgress(0);
+        int i = 0;
         for (Problem problem : PROBLEMS) {
+            int j = 0;
+            for (String metric : metrics) {
+                String dir = "experiment/" + problem.getName() + "_" + problem.getNumberOfObjectives() + "/";
+                try (FileWriter fileWriter = new FileWriter(dir + metric.toUpperCase() + ".txt")) {
+                    StringBuilder algorithmStringBuilder = new StringBuilder();
+                    StringBuilder valuesStringBuilder = new StringBuilder();
+                    for (String algorithm : ALGORITHMS) {
+                        algorithmStringBuilder.append(algorithm).append(", ");
+                        Scanner scanner = new Scanner(new File(dir + algorithm + "/" + metric.toUpperCase() + ".txt"));
+                        DescriptiveStatistics descriptiveStatistics = new DescriptiveStatistics();
+                        while (scanner.hasNextDouble()) {
+                            descriptiveStatistics.addValue(scanner.nextDouble());
+                        }
+                        valuesStringBuilder.append(descriptiveStatistics.getMean()).append(" (").append(descriptiveStatistics.getStandardDeviation()).append("), ");
+                    }
+
+                    algorithmStringBuilder.deleteCharAt(algorithmStringBuilder.length() - 1).deleteCharAt(algorithmStringBuilder.length() - 1);
+                    valuesStringBuilder.deleteCharAt(valuesStringBuilder.length() - 1).deleteCharAt(valuesStringBuilder.length() - 1);
+                    fileWriter.write(algorithmStringBuilder.toString() + "\n");
+                    fileWriter.write(valuesStringBuilder.toString());
+                }
+                j++;
+                double percentage = ((double) i * (double) metrics.length + (double) j) / ((double) metrics.length * (double) PROBLEMS.length) * 100D;
+                printProgress(percentage);
+            }
+            i++;
+        }
+    }
+
+    private static void runStatisticalComparsion(String... metrics) throws IOException, InterruptedException {
+        printProgress(0);
+        int i = 0;
+        for (Problem problem : PROBLEMS) {
+            int j = 0;
             for (String metric : metrics) {
                 String dir = "experiment/" + problem.getName() + "_" + problem.getNumberOfObjectives() + "/";
                 try (FileWriter friedman = new FileWriter(dir + metric + "_script.txt")) {
@@ -244,33 +324,23 @@ public class Experiment {
                 ProcessBuilder processBuilder = new ProcessBuilder("R", "--no-save");
                 Process process = processBuilder.redirectInput(new File("./" + dir + metric + "_script.txt")).start();
                 process.waitFor();
+                j++;
+                double percentage = ((double) i * (double) metrics.length + (double) j) / ((double) metrics.length * (double) PROBLEMS.length) * 100D;
+                printProgress(percentage);
             }
+            i++;
         }
     }
 
-    private static void gatherMetricsAverageAndStdDev(String... metrics) throws FileNotFoundException, IOException {
-        for (Problem problem : PROBLEMS) {
-            for (String metric : metrics) {
-                String dir = "experiment/" + problem.getName() + "_" + problem.getNumberOfObjectives() + "/";
-                try (FileWriter fileWriter = new FileWriter(dir + metric.toUpperCase() + ".txt")) {
-                    StringBuilder algorithmStringBuilder = new StringBuilder();
-                    StringBuilder valuesStringBuilder = new StringBuilder();
-                    for (String algorithm : ALGORITHMS) {
-                        algorithmStringBuilder.append(algorithm).append(", ");
-                        Scanner scanner = new Scanner(new File(dir + algorithm + "/" + metric.toUpperCase() + ".txt"));
-                        DescriptiveStatistics descriptiveStatistics = new DescriptiveStatistics();
-                        while (scanner.hasNextDouble()) {
-                            descriptiveStatistics.addValue(scanner.nextDouble());
-                        }
-                        valuesStringBuilder.append(descriptiveStatistics.getMean()).append(" (").append(descriptiveStatistics.getStandardDeviation()).append("), ");
-                    }
-
-                    algorithmStringBuilder.deleteCharAt(algorithmStringBuilder.length() - 1).deleteCharAt(algorithmStringBuilder.length() - 1);
-                    valuesStringBuilder.deleteCharAt(valuesStringBuilder.length() - 1).deleteCharAt(valuesStringBuilder.length() - 1);
-                    fileWriter.write(algorithmStringBuilder.toString() + "\n");
-                    fileWriter.write(valuesStringBuilder.toString());
-                }
+    private static void printProgress(double percentage) {
+        String dots = "";
+        for (int i = 1; i <= 50; i++) {
+            if (i <= percentage / 2) {
+                dots += ".";
+            } else {
+                dots += " ";
             }
         }
+        System.out.printf("\rProgress [" + dots + "] %.0f%s", percentage, "%");
     }
 }
