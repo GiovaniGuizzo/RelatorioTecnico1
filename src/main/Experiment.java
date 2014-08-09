@@ -29,7 +29,9 @@ import jmetal.problems.DTLZ.DTLZ1;
 import jmetal.problems.DTLZ.DTLZ7;
 import jmetal.qualityIndicator.QualityIndicator;
 import jmetal.qualityIndicator.R2;
+import jmetal.qualityIndicator.util.MetricsUtil;
 import jmetal.util.JMException;
+import jmetal.util.NonDominatedSolutionList;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 
 public class Experiment {
@@ -115,6 +117,7 @@ public class Experiment {
         Operator selection; // Selection operator
 
         HashMap parameters; // Operator parameters
+        MetricsUtil metricsUtil = new MetricsUtil();
 
         for (Problem problem : PROBLEMS) {
 
@@ -135,6 +138,8 @@ public class Experiment {
                 if (!dir.exists()) {
                     dir.mkdirs();
                 }
+
+                NonDominatedSolutionList algorithmFront = new NonDominatedSolutionList();
 
                 try (FileWriter r2 = new FileWriter(dirPath + "R2.txt"); FileWriter igd = new FileWriter(dirPath + "IGD.txt"); FileWriter time = new FileWriter(dirPath + "TIME.txt")) {
                     System.out.println("Algorithm " + algorithmString + " for problem " + problem.getName() + "_" + problem.getNumberOfObjectives() + ":");
@@ -202,6 +207,7 @@ public class Experiment {
                         // Result messages
                         population.printVariablesToFile(dirPath + "VAR_" + execution + ".txt");
                         population.printObjectivesToFile(dirPath + "FUN_" + execution + ".txt");
+                        algorithmFront.addAll(population);
 
                         time.write(estimatedTime + "\n");
                         igd.write(igdIndicator.getIGD(population) + "\n");
@@ -211,6 +217,7 @@ public class Experiment {
                         printProgress(percentage);
                     }
                 }
+                algorithmFront.printFeasibleFUN(dir + "FUN_ALL.txt");
                 System.out.println();
             }
 
@@ -251,7 +258,7 @@ public class Experiment {
                         while (scanner.hasNextDouble()) {
                             descriptiveStatistics.addValue(scanner.nextDouble());
                         }
-                        valuesStringBuilder.append(descriptiveStatistics.getMean()).append(" (").append(descriptiveStatistics.getStandardDeviation()).append("), ");
+                        valuesStringBuilder.append(String.valueOf(descriptiveStatistics.getMean()).replace(".", ",")).append(" (").append(descriptiveStatistics.getStandardDeviation()).append(")\n ");
                     }
 
                     algorithmStringBuilder.deleteCharAt(algorithmStringBuilder.length() - 1).deleteCharAt(algorithmStringBuilder.length() - 1);
@@ -306,8 +313,8 @@ public class Experiment {
                     stringBuilder.append("write.csv2(m,file=\"./").append(dir).append(metric).append(".csv\")\n");
                     stringBuilder.append("\n");
                     stringBuilder.append("pos_teste<-friedmanmc(AR1)\n");
-                    stringBuilder.append("write.csv2(pos_teste,file=\"./").append(dir).append(metric).append(".csv\")\n");
-                    stringBuilder.append("png(file=\"./").append(dir).append(metric).append("boxplot.png\", width=1440, height=500)\n");
+                    stringBuilder.append("write.csv2(pos_teste,file=\"./").append(dir).append(metric).append("-pos.csv\")\n");
+                    stringBuilder.append("png(file=\"./").append(dir).append(metric).append("boxplot.png\", width=400, height=400)\n");
                     stringBuilder.append("boxplot(").append(contextNames.toString());
 
                     contextNames = new StringBuilder();

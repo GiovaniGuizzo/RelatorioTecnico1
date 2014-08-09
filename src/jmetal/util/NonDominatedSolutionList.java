@@ -18,89 +18,90 @@
 // 
 //  You should have received a copy of the GNU Lesser General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
 package jmetal.util;
 
+import java.util.Comparator;
+import java.util.Iterator;
 import jmetal.core.Solution;
 import jmetal.core.SolutionSet;
 import jmetal.util.comparators.DominanceComparator;
 import jmetal.util.comparators.SolutionComparator;
 
-import java.util.Comparator;
-import java.util.Iterator;
-
-/** 
+/**
  * This class implements an unbound list of non-dominated solutions
  */
-public class NonDominatedSolutionList extends SolutionSet{
+public class NonDominatedSolutionList extends SolutionSet {
 
-	/**
-	 * Stores a <code>Comparator</code> for dominance checking
-	 */
-	private Comparator dominance_ = new DominanceComparator(); 
+    /**
+     * Stores a <code>Comparator</code> for dominance checking
+     */
+    private Comparator dominance_ = new DominanceComparator();
 
-	/**
-	 * Stores a <code>Comparator</code> for checking if two solutions are equal
-	 */
-	private static final Comparator equal_ = new SolutionComparator();     
+    /**
+     * Stores a <code>Comparator</code> for checking if two solutions are equal
+     */
+    private static final Comparator equal_ = new SolutionComparator();
 
-	/** 
-	 * Constructor.
-	 * The objects of this class are lists of non-dominated solutions according to
-	 * a Pareto dominance comparator. 
-	 */
-	public NonDominatedSolutionList() {
-		super();
-	} // NonDominatedList
+    /**
+     * Constructor. The objects of this class are lists of non-dominated solutions according to a Pareto dominance comparator.
+     */
+    public NonDominatedSolutionList() {
+        super();
+    } // NonDominatedList
 
-	/**
-	 * Constructor.
-	 * This constructor creates a list of non-dominated individuals using a
-	 * comparator object.
-	 * @param dominance The comparator for dominance checking.
-	 */
-	public NonDominatedSolutionList(Comparator dominance) {
-		super();
-		dominance_ = dominance;
-	} // NonDominatedList
+    /**
+     * Constructor. This constructor creates a list of non-dominated individuals using a comparator object.
+     *
+     * @param dominance The comparator for dominance checking.
+     */
+    public NonDominatedSolutionList(Comparator dominance) {
+        super();
+        dominance_ = dominance;
+    } // NonDominatedList
 
-	/** Inserts a solution in the list
-	 * @param solution The solution to be inserted.
-	 * @return true if the operation success, and false if the solution is 
-	 * dominated or if an identical individual exists.
-	 * The decision variables can be null if the solution is read from a file; in
-	 * that case, the domination tests are omitted
-	 */
-	public boolean add(Solution solution){
-		if (solutionsList_.size() == 0) {
-			solutionsList_.add(solution);    
-			return true ;
-		}
-		else {
-			Iterator<Solution> iterator = solutionsList_.iterator();
+    public void addAll(SolutionSet solutions) {
+        for (Iterator<Solution> iterator = solutions.iterator(); iterator.hasNext();) {
+            Solution solution = iterator.next();
+            this.add(solution);
+        }
+    }
 
-			//if (solution.getDecisionVariables() != null) {
-			while (iterator.hasNext()){
-				Solution listIndividual = iterator.next();
-				int flag = dominance_.compare(solution,listIndividual);
+    /**
+     * Inserts a solution in the list
+     *
+     * @param solution The solution to be inserted.
+     * @return true if the operation success, and false if the solution is dominated or if an identical individual exists. The decision variables can be null if the solution is read from a file; in that case, the domination tests are omitted
+     */
+    @Override
+    public boolean add(Solution solution) {
+        if (solutionsList_.isEmpty()) {
+            solutionsList_.add(solution);
+            return true;
+        } else {
+            Iterator<Solution> iterator = solutionsList_.iterator();
 
-				if (flag == -1) {  // A solution in the list is dominated by the new one
-					iterator.remove();
-				} else if (flag == 0) { // Non-dominated solutions
-					//flag = equal_.compare(solution,listIndividual);
-					//if (flag == 0) {
-					//	return false;   // The new solution is in the list  
-					//}
-				} else if (flag == 1) { // The new solution is dominated
-					return false;
-				}
-			} // while 
-			//} // if
+            //if (solution.getDecisionVariables() != null) {
+            while (iterator.hasNext()) {
+                Solution listIndividual = iterator.next();
+                int flag = dominance_.compare(solution, listIndividual);
 
-			//At this point, the solution is inserted into the list
-			solutionsList_.add(solution);                
+                if (flag == -1) {  // A solution in the list is dominated by the new one
+                    iterator.remove();
+                } else if (flag == 0) { // Non-dominated solutions
+                    //flag = equal_.compare(solution,listIndividual);
+                    //if (flag == 0) {
+                    //	return false;   // The new solution is in the list  
+                    //}
+                } else if (flag == 1) { // The new solution is dominated
+                    return false;
+                }
+            } // while 
+            //} // if
 
-			return true;        
-		}
-	} // add                   
+            //At this point, the solution is inserted into the list
+            solutionsList_.add(solution);
+
+            return true;
+        }
+    } // add                   
 } // NonDominatedList
